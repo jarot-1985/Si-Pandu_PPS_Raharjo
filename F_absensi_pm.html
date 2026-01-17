@@ -17,12 +17,6 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL 
-} from 'firebase/storage';
-import { 
   Save, 
   Trash2, 
   Edit3, 
@@ -44,11 +38,11 @@ import {
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
-const firebaseConfig = JSON.parse(window.__firebase_config || (window.parent && window.parent.__firebase_config));
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : ((window.parent && window.parent.__app_id) ? window.parent.__app_id : 'sipandu-app');
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'pm-absensi-pdf-cloud';
 
 export default function App() {
   // Langsung set tab aktif ke 'input' agar tampil pertama kali
@@ -152,25 +146,28 @@ export default function App() {
     setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 4000);
   };
 
-  const [currentPdfFile, setCurrentPdfFile] = useState(null);
-
   const handlePdfUpload = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      showNotif("File harus berformat PDF", "error");
-      return;
+    if (file) {
+      if (file.type !== "application/pdf") {
+        showNotif("File harus berformat PDF", "error");
+        return;
+      }
+      if (file.size > 1.5 * 1024 * 1024) {
+        showNotif("Ukuran PDF maksimal 1MB", "error");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm(prev => ({ 
+          ...prev, 
+          pdfData: reader.result,
+          pdfName: file.name
+        }));
+      };
+      reader.readAsDataURL(file);
     }
-    if (file.size > 1.5 * 1024 * 1024) {
-      showNotif("Ukuran PDF maksimal 1.5MB", "error");
-      return;
-    }
-    setCurrentPdfFile(file);
-    setForm(prev => ({ 
-      ...prev, 
-      pdfData: null,
-      pdfName: file.name
-    }));
   };
 
   const viewPdf = (pdfBase64) => {
@@ -189,22 +186,7 @@ export default function App() {
     e.preventDefault();
     if (!user) return;
     try {
-      let pdfUrl = form.pdfData || null;
-
-      if (currentPdfFile) {
-        const safeName = currentPdfFile.name.replace(/\s+/g, "_");
-        const path = `artifacts/${appId}/public/files/absensi_pm_pdf/${Date.now()}_${safeName}`;
-        const storage = getStorage(app);
-        const fileRef = ref(storage, path);
-        const snap = await uploadBytes(fileRef, currentPdfFile, { contentType: "application/pdf" });
-        pdfUrl = await getDownloadURL(snap.ref);
-      }
-
-      const payload = { 
-        ...form, 
-        pdfData: pdfUrl,
-        updatedAt: Date.now() 
-      };
+      const payload = { ...form, updatedAt: Date.now() };
       if (editId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'absensi_pm_pdf', editId), payload);
         setEditId(null);

@@ -224,7 +224,52 @@
       </div>
     </div>
   </footer>
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Manajemen Informasi - SIPANDU</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <!-- ... head lainnya ... -->
+    </head>
+    <body class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
+      <!-- ... header Anda ... -->
 
+      <!-- ============================================================== -->
+      <!-- TAMBAHKAN BLOK SCRIPT INI DI SINI -->
+      <!-- Ini akan membuat konfigurasi tersedia untuk skrip modul Anda -->
+      <script>
+        window.__firebase_config = {
+          apiKey: "AIzaSyDQiHRDPJNPm-zci3L3X9sipjZCVPl5lqQ",
+          authDomain: "sipandu-2872d.firebaseapp.com",
+          databaseURL: "https://sipandu-2872d-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "sipandu-2872d",
+          storageBucket: "sipandu-2872d.firebasestorage.app",
+          messagingSenderId: "948086868716",
+          appId: "1:948086868716:web:49d20c5918b890ed5cf3c9",
+          measurementId: "G-0MLHGJ411V"
+        };
+        // Anda juga punya logika untuk appId yang terpisah, jadi pastikan itu juga diset
+        window.__app_id = "info-portal-system";
+        // Jika Anda memiliki URL logo dinamis, Anda bisa menambahkannya di sini juga
+        // window.__sipandu_logo_url = "https://example.com/your-logo.png";
+      </script>
+      <!-- ============================================================== -->
+
+      <!-- Script JavaScript utama Anda (type="module") -->
+      <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // ... sisa import dan kode JavaScript Anda ...
+        // Bagian ini akan membaca window.__firebase_config yang sudah Anda definisikan di atas
+        // ...
+      </script>
+    </body>
+    </html>
+    ```
+
+
+  
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -246,6 +291,10 @@
       if (!rawConfig) {
         useCloud = false;
         console.warn("Firebase config not found, running in local mode");
+console.log(useCloud);
+
+
+
       } else {
         const parsedConfig = typeof rawConfig === "string" ? JSON.parse(rawConfig) : rawConfig;
         app = initializeApp(parsedConfig);

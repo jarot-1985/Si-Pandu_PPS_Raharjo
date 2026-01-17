@@ -28,7 +28,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const multer = require('multer');
 const dotenv = require('dotenv');
-// MongoDB disabled
+const { MongoClient, ObjectId } = require('mongodb');
 const cloudinary = require('cloudinary').v2;
 
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -69,7 +69,15 @@ let db;
 let col;
 
 async function initMongo() {
-  console.log('[INFO] MongoDB connection disabled');
+  client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  await client.connect();
+  db = client.db(DB_NAME);
+  col = db.collection('mutasi_pm');
+  // indexes
+  await col.createIndex({ bulanTahun: 1 });
+  await col.createIndex({ unitPelayanan: 1, bulanTahun: -1 });
+  await col.createIndex({ unitPelayanan: 'text' });
+  console.log('[OK] Connected to MongoDB');
 }
 
 app.get('/health', (req, res) => {
@@ -135,20 +143,64 @@ function buildQuery(qs) {
 
 // CRUD Mutasi
 app.get('/mutasi', async (req, res) => {
-  res.json([]);
+  try {
+    const query = buildQuery(req.query);
+    const data = await col.find(query).sort({ updatedAt: -1 }).toArray();
+    res.json(data);
+  } catch (err) {
+    console.error('GET /mutasi error', err);
+    res.status(500).json({ error: 'Failed to fetch data' });
+  }
 });
 
 app.post('/mutasi', async (req, res) => {
-  res.status(501).json({ error: 'Database disabled' });
+  try {
+    const payload = normalizePayload(req.body);
+    if (!payload.unitPelayanan || !payload.bulanTahun) {
+      return res.status(400).json({ error: 'unitPelayanan & bulanTahun required' });
+    }
+    payload.createdAt = new Date();
+    payload.updatedAt = new Date();
+    const r = await col.insertOne(payload);
+    res.status(201).json({ _id: r.insertedId, ...payload });
+  } catch (err) {
+    console.error('POST /mutasi error', err);
+    res.status(500).json({ error: 'Failed to create' });
+  }
 });
 
 app.put('/mutasi/:id', async (req, res) => {
-  res.status(501).json({ error: 'Database disabled' });
+  try {
+    const id = req.params.id;
+    const payload = normalizePayload(req.body);
+    payload.updatedAt = new Date();
+    const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: payload });
+    if (!r.matchedCount) return res.status(404).json({ error: 'Not found' });
+    res.json({ _id: id, ...payload });
+  } catch (err) {
+    console.error('PUT /mutasi/:id error', err);
+    res.status(500).json({ error: 'Failed to update' });
+  }
 });
 
 app.delete('/mutasi/:id', async (req, res) => {
-  res.status(501).json({ error: 'Database disabled' });
+  try {
+    const id = req.params.id;
+    const r = await col.deleteOne({ _id: new ObjectId(id) });
+    if (!r.deletedCount) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /mutasi/:id error', err);
+    res.status(500).json({ error: 'Failed to delete' });
+  }
 });
 
 // Start server after Mongo connected
-app.listen(PORT, () => console.log(`[OK] Server listening on port ${PORT}`));
+initMongo()
+  .then(() => {
+    app.listen(PORT, () => console.log(`[OK] Server listening on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error('[FATAL] Mongo init failed', err);
+    process.exit(1);
+  });

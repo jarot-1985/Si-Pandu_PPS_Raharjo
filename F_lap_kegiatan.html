@@ -53,20 +53,6 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-const raw = window.__firebase_config || localStorage.getItem('sipandu_firebase_config');
-const cfg = JSON.parse(raw);
-const app = initializeApp(cfg);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-const appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : (localStorage.getItem('sipandu_app_id') || 'sipandu-app');
-window.__cloud = { db, auth, storage, appId };
-</script>
 
     <div class="main-ui-container max-w-[1500px] mx-auto space-y-8">
         
@@ -243,7 +229,7 @@ window.__cloud = { db, auth, storage, appId };
             "Kota Semarang": ["Semarang Tengah", "Semarang Utara", "Semarang Timur", "Semarang Selatan", "Semarang Barat", "Gayamsari", "Genuk", "Pedurungan", "Candisari", "Gajahmungkur", "Tembalang", "Banyumanik", "Gunungpati", "Ngaliyan", "Mijen", "Tugu"]
         };
 
-        let dataLaporan = [];
+        let dataLaporan = JSON.parse(localStorage.getItem('db_laporan_personal_v4')) || [];
         let isEditing = false;
         let uploadedPhotos = [];
 
@@ -320,9 +306,13 @@ window.__cloud = { db, auth, storage, appId };
             document.getElementById('btnText').innerText = "Simpan Laporan";
             kecSelect.disabled = kelSelect.disabled = true;
             form.reset();
+            const last = localStorage.getItem('last_reporter_name');
+            if(last) inputNamaPelapor.value = last;
         }
 
         function initApp() {
+            const last = localStorage.getItem('last_reporter_name');
+            if(last) inputNamaPelapor.value = last;
 
             Object.keys(wilayahData).sort().forEach(kab => {
                 const opt = document.createElement('option');
@@ -395,15 +385,15 @@ window.__cloud = { db, auth, storage, appId };
             document.getElementById('rowCountDisplay').innerText = `TOTAL: ${filtered.length} LAPORAN`;
         }
 
-        form.onsubmit = async function(e) {
+        form.onsubmit = function(e) {
             e.preventDefault();
             if (uploadedPhotos.length < 4) {
                 alert("Peringatan: Dokumentasi foto harus berjumlah 4 foto.");
                 return;
             }
             const pengikutData = Array.from(document.querySelectorAll('.pengikut-input')).map(i => i.value).filter(v => v.trim() !== '');
-            const now = Date.now();
             const payload = {
+                id: isEditing ? parseInt(document.getElementById('editId').value) : Date.now(),
                 nama_pelapor: inputNamaPelapor.value,
                 unit_pelayanan: document.getElementById('unit_pelayanan').value,
                 tanggal_kegiatan: document.getElementById('tanggal_kegiatan').value,
@@ -415,32 +405,17 @@ window.__cloud = { db, auth, storage, appId };
                 alamat_lengkap: document.getElementById('alamat_lengkap').value,
                 keterangan: document.getElementById('keterangan').value,
                 pengikut: pengikutData,
-                photos: [],
-                updatedAt: now,
-                createdAt: isEditing ? undefined : now
+                photos: uploadedPhotos
             };
-            try {
-                const urls = [];
-                for (let i = 0; i < uploadedPhotos.length; i++) {
-                    const path = `artifacts/${window.__cloud.appId}/public/files/laporan_kegiatan/${now}_${i}.png`;
-                    const r = ref(window.__cloud.storage, path);
-                    await uploadString(r, uploadedPhotos[i], 'data_url');
-                    const u = await getDownloadURL(r);
-                    urls.push(u);
-                }
-                payload.photos = urls;
-                await signInAnonymously(window.__cloud.auth);
-                if (isEditing) {
-                    const id = document.getElementById('editId').value;
-                    const refDoc = doc(window.__cloud.db, "artifacts", window.__cloud.appId, "public", "data", "laporan_kegiatan", id);
-                    await updateDoc(refDoc, payload);
-                } else {
-                    const added = await addDoc(collection(window.__cloud.db, "artifacts", window.__cloud.appId, "public", "data", "laporan_kegiatan"), payload);
-                }
-                resetFormState();
-            } catch (err) {
-                alert("Gagal menyimpan ke Cloud");
+            localStorage.setItem('last_reporter_name', payload.nama_pelapor);
+            if(isEditing) {
+                const idx = dataLaporan.findIndex(d => d.id === payload.id);
+                dataLaporan[idx] = payload;
+            } else {
+                dataLaporan.unshift(payload);
             }
+            localStorage.setItem('db_laporan_personal_v4', JSON.stringify(dataLaporan));
+            resetFormState(); renderTable();
         };
 
         window.editItem = (id) => {
@@ -469,13 +444,11 @@ window.__cloud = { db, auth, storage, appId };
             window.scrollTo({top:0, behavior:'smooth'});
         };
 
-        window.deleteItem = async (id) => {
+        window.deleteItem = (id) => {
             if(confirm('Hapus laporan ini?')) {
-                try {
-                    await signInAnonymously(window.__cloud.auth);
-                    const refDoc = doc(window.__cloud.db, "artifacts", window.__cloud.appId, "public", "data", "laporan_kegiatan", id.toString());
-                    await deleteDoc(refDoc);
-                } catch (e) {}
+                dataLaporan = dataLaporan.filter(d => d.id !== id);
+                localStorage.setItem('db_laporan_personal_v4', JSON.stringify(dataLaporan));
+                renderTable();
             }
         };
 
@@ -726,16 +699,7 @@ window.__cloud = { db, auth, storage, appId };
             URL.revokeObjectURL(link.href);
         }
 
-        window.onload = () => {
-            initApp();
-            onAuthStateChanged(window.__cloud.auth, () => {
-                const col = collection(window.__cloud.db, "artifacts", window.__cloud.appId, "public", "data", "laporan_kegiatan");
-                onSnapshot(col, (snap) => {
-                    dataLaporan = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    renderTable();
-                });
-            });
-        };
+        window.onload = initApp;
     </script>
 </body>
 </html>

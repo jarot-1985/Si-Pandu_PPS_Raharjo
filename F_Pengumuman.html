@@ -745,14 +745,18 @@ console.log(useCloud);
     searchInput.addEventListener("input", renderTable);
 
     initAuth();
-    if (useCloud && auth) {
-      onAuthStateChanged(auth, user => {
-        currentUser = user;
-        if (user) {
-          startListener();
+     if (useCloud && auth) {
+          onAuthStateChanged(auth, user => {
+            currentUser = user;
+            if (user) {
+              console.log("Pengguna terautentikasi:", user.uid); // <--- Tambahkan ini
+              startListener();
+            } else {
+              console.log("Pengguna tidak terautentikasi."); // <--- Tambahkan ini
+            }
+          });
         }
-      });
-    }
+
 
     switchTab("list");
   </script>
